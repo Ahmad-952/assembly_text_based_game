@@ -1,0 +1,346 @@
+; ============================================================
+; QUIZ GAME FOR EMU8086 - FULLY FIXED VERSION
+; 5 Questions, Score Tracking, Pass/Fail Result
+; ============================================================
+
+.model small
+.stack 100h
+
+.data
+    ; ─── Game Strings ───
+    welcome     db '================================',13,10
+                db '      WELCOME TO QUIZ GAME     ',13,10
+                db '================================',13,10,13,10
+                db 'Rules:',13,10
+                db '- 5 Questions',13,10
+                db '- +10 points for correct answer',13,10
+                db '- -5 points for wrong answer',13,10
+                db '- Press A, B, C, or D to answer',13,10,13,10
+                db 'Press any key to start...','$'
+    
+    q1          db 13,10,'Q1. What is the capital of France?',13,10
+                db '  A. London',13,10
+                db '  B. Berlin',13,10
+                db '  C. Paris',13,10
+                db '  D. Madrid',13,10
+                db 'Your answer: ','$'
+    a1          db 'C'
+    
+    q2          db 13,10,'Q2. Which planet is known as Red Planet?',13,10
+                db '  A. Venus',13,10
+                db '  B. Mars',13,10
+                db '  C. Jupiter',13,10
+                db '  D. Saturn',13,10
+                db 'Your answer: ','$'
+    a2          db 'B'
+    
+    q3          db 13,10,'Q3. What is 2 + 2 x 2?',13,10
+                db '  A. 8',13,10
+                db '  B. 4',13,10
+                db '  C. 6',13,10
+                db '  D. 10',13,10
+                db 'Your answer: ','$'
+    a3          db 'C'
+    
+    q4          db 13,10,'Q4. Who invented the light bulb?',13,10
+                db '  A. Newton',13,10
+                db '  B. Einstein',13,10
+                db '  C. Tesla',13,10
+                db '  D. Edison',13,10
+                db 'Your answer: ','$'
+    a4          db 'D'
+    
+    q5          db 13,10,'Q5. What is the largest ocean?',13,10
+                db '  A. Atlantic',13,10
+                db '  B. Indian',13,10
+                db '  C. Pacific',13,10
+                db '  D. Arctic',13,10
+                db 'Your answer: ','$'
+    a5          db 'C'
+    
+    correct_msg db 13,10,13,10,'>>> CORRECT! +10 points','$'
+    wrong_msg   db 13,10,13,10,'>>> WRONG! -5 points','$'
+    
+    final_score db 13,10,13,10
+                db '================================',13,10
+                db '         FINAL RESULT          ',13,10
+                db '================================',13,10
+                db 'Your Score: ','$'
+    out_of      db ' out of 50',13,10,'$'
+    
+    pass_msg    db 13,10,13,10,'*** CONGRATULATIONS! YOU PASSED! ***','$'
+    fail_msg    db 13,10,13,10,'*** SORRY, YOU FAILED. TRY AGAIN! ***','$'
+    
+    play_again  db 13,10,13,10,'Play again? (Y/N): ','$'
+    thanks      db 13,10,13,10,'Thanks for playing!',13,10,'$'
+    
+    press_any   db 13,10,'Press any key to continue...','$'
+
+    score       dw 0
+
+.code
+; ============================================================
+; PROCEDURES (ALL DEFINED BEFORE MAIN)
+; ============================================================
+
+; ─── Clear Screen ───
+clear_screen proc
+    push ax
+    push bx
+    push cx
+    push dx
+    mov ax, 0600h
+    mov bh, 07h
+    xor cx, cx
+    mov dx, 184Fh
+    int 10h
+    xor dx, dx
+    mov ah, 02h
+    mov bh, 0
+    int 10h
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+clear_screen endp
+
+; ─── Get Answer (A-D) ───
+; Returns: AL = uppercase answer
+get_answer proc
+    mov ah, 01h
+    int 21h
+    
+    ; Convert to uppercase
+    cmp al, 'a'
+    jb no_convert
+    cmp al, 'z'
+    ja no_convert
+    sub al, 20h
+    
+no_convert:
+    ret
+get_answer endp
+
+; ─── Correct Answer ───
+correct proc
+    push dx
+    mov dx, offset correct_msg
+    mov ah, 09h
+    int 21h
+    add score, 10
+    call wait_key
+    pop dx
+    ret
+correct endp
+
+; ─── Wrong Answer ───
+wrong proc
+    push dx
+    mov dx, offset wrong_msg
+    mov ah, 09h
+    int 21h
+    cmp score, 5
+    jb score_zero
+    sub score, 5
+    jmp wrong_done
+score_zero:
+    mov score, 0
+wrong_done:
+    call wait_key
+    pop dx
+    ret
+wrong endp
+
+; ─── Wait for Key Press ───
+wait_key proc
+    push ax
+    push dx
+    mov dx, offset press_any
+    mov ah, 09h
+    int 21h
+    mov ah, 01h
+    int 21h
+    pop dx
+    pop ax
+    ret
+wait_key endp
+
+; ─── Print Number in AX ───
+print_num proc
+    push ax
+    push bx
+    push cx
+    push dx
+    
+    mov cx, 0
+    mov bx, 10
+    
+div_loop:
+    xor dx, dx
+    div bx
+    push dx
+    inc cx
+    cmp ax, 0
+    jne div_loop
+    
+print_loop:
+    pop dx
+    add dl, '0'
+    mov ah, 02h
+    int 21h
+    loop print_loop
+    
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+print_num endp
+
+; ============================================================
+; MAIN PROGRAM
+; ============================================================
+main proc
+    mov ax, @data
+    mov ds, ax
+
+game_start:
+    ; Clear screen
+    call clear_screen
+    
+    ; Reset score
+    mov score, 0
+    
+    ; Show welcome
+    mov dx, offset welcome
+    mov ah, 09h
+    int 21h
+    
+    ; Wait for key
+    mov ah, 01h
+    int 21h
+    
+    ; ─── QUESTION 1 ───
+    call clear_screen
+    mov dx, offset q1
+    mov ah, 09h
+    int 21h
+    call get_answer
+    cmp al, [a1]
+    je q1_right
+    call wrong
+    jmp q2_start
+q1_right:
+    call correct
+
+    ; ─── QUESTION 2 ───
+q2_start:
+    call clear_screen
+    mov dx, offset q2
+    mov ah, 09h
+    int 21h
+    call get_answer
+    cmp al, [a2]
+    je q2_right
+    call wrong
+    jmp q3_start
+q2_right:
+    call correct
+
+    ; ─── QUESTION 3 ───
+q3_start:
+    call clear_screen
+    mov dx, offset q3
+    mov ah, 09h
+    int 21h
+    call get_answer
+    cmp al, [a3]
+    je q3_right
+    call wrong
+    jmp q4_start
+q3_right:
+    call correct
+
+    ; ─── QUESTION 4 ───
+q4_start:
+    call clear_screen
+    mov dx, offset q4
+    mov ah, 09h
+    int 21h
+    call get_answer
+    cmp al, [a4]
+    je q4_right
+    call wrong
+    jmp q5_start
+q4_right:
+    call correct
+
+    ; ─── QUESTION 5 ───
+q5_start:
+    call clear_screen
+    mov dx, offset q5
+    mov ah, 09h
+    int 21h
+    call get_answer
+    cmp al, [a5]
+    je q5_right
+    call wrong
+    jmp show_result
+q5_right:
+    call correct
+
+    ; ─── SHOW RESULT ───
+show_result:
+    call clear_screen
+    mov dx, offset final_score
+    mov ah, 09h
+    int 21h
+    
+    ; Print score
+    mov ax, score
+    call print_num
+    
+    mov dx, offset out_of
+    mov ah, 09h
+    int 21h
+    
+    ; Pass or Fail? (25 = passing)
+    cmp score, 25
+    jge passed
+    
+    mov dx, offset fail_msg
+    mov ah, 09h
+    int 21h
+    jmp ask_restart
+    
+passed:
+    mov dx, offset pass_msg
+    mov ah, 09h
+    int 21h
+
+    ; ─── PLAY AGAIN? ───
+ask_restart:
+    mov dx, offset play_again
+    mov ah, 09h
+    int 21h
+    
+    mov ah, 01h
+    int 21h
+    
+    cmp al, 'Y'
+    je game_start
+    cmp al, 'y'
+    je game_start
+    
+    ; Exit
+    mov dx, offset thanks
+    mov ah, 09h
+    int 21h
+    
+    mov ax, 4C00h
+    int 21h
+
+main endp
+
+end main
